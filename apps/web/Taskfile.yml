@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: '3'
+
+tasks:
+  dev:
+    desc: Start Next.js dev server
+    cmds:
+      - pnpm dev
+
+  build:
+    desc: Build the Next.js app
+    cmds:
+      - pnpm build
+
+  test:
+    desc: Run frontend tests
+    cmds:
+      - pnpm test
+
+  lint:
+    desc: Lint frontend code
+    cmds:
+      - pnpm lint
+
+  typecheck:
+    desc: Typecheck frontend code
+    cmds:
+      - pnpm typecheck
