@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: '3'
+
+tasks:
+  build:
+    desc: Build all Go binaries
+    cmds:
+      - go build ./...
+
+  test:
+    desc: Run all Go tests
+    cmds:
+      - go test ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run ./...
+
+  run:api:
+    desc: Run the API gateway
+    cmds:
+      - go run ./cmd/api
+
+  run:worker:
+    desc: Run the worker
+    cmds:
+      - go run ./cmd/worker
