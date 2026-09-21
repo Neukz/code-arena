@@ -5,9 +5,6 @@ version: '3'
 dotenv:
   - .env
 
-vars:
-  GOOSE_MIGRATION_DIR: ./sql/schema
-
 includes:
   go:
     taskfile: ./cmd/Taskfile.yml
@@ -63,12 +60,12 @@ tasks:
   migrate-up:
     desc: Run database migrations
     cmds:
-      - goose -dir {{.GOOSE_MIGRATION_DIR}} postgres "$DATABASE_URL" up
+      - goose -dir "$GOOSE_MIGRATION_DIR" postgres "$DATABASE_URL" up
 
   migrate-down:
     desc: Roll back database migrations
     cmds:
-      - goose -dir {{.GOOSE_MIGRATION_DIR}} postgres "$DATABASE_URL" down
+      - goose -dir "$GOOSE_MIGRATION_DIR" postgres "$DATABASE_URL" down
 
   sqlc-generate:
     desc: Generate Go code from sqlc queries
