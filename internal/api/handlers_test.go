@@ -426,6 +426,104 @@ func TestCreateSubmission_InvalidProblemID(t *testing.T) {
 	}
 }
 
+func TestCreateSubmission_MissingProblemID(t *testing.T) {
+	h := makeHandler(&stubStore{}, &queue.StubPublisher{})
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	reqBody, _ := json.Marshal(CreateSubmissionRequest{
+		LanguageID: "python",
+		SourceCode: "print('hello')",
+	})
+
+	resp, err := http.Post(ts.URL+"/api/v1/submissions", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatalf("http.Post: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestCreateSubmission_MissingLanguageID(t *testing.T) {
+	uid := mustUUID(uuidBytes())
+	h := makeHandler(&stubStore{}, &queue.StubPublisher{})
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	reqBody, _ := json.Marshal(CreateSubmissionRequest{
+		ProblemID:  uid.String(),
+		SourceCode: "print('hello')",
+	})
+
+	resp, err := http.Post(ts.URL+"/api/v1/submissions", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatalf("http.Post: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestCreateSubmission_MissingSourceCode(t *testing.T) {
+	uid := mustUUID(uuidBytes())
+	h := makeHandler(&stubStore{}, &queue.StubPublisher{})
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	reqBody, _ := json.Marshal(CreateSubmissionRequest{
+		ProblemID:  uid.String(),
+		LanguageID: "python",
+	})
+
+	resp, err := http.Post(ts.URL+"/api/v1/submissions", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatalf("http.Post: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestCreateSubmission_CreateSubmissionDBError(t *testing.T) {
+	uid := mustUUID(uuidBytes())
+	store := &stubStore{
+		problemByID: db.Problem{
+			ID: uid,
+		},
+		languageByID: db.Language{
+			ID: "python",
+		},
+		createSubmissionErr: errors.New("db write failed"),
+	}
+
+	h := makeHandler(store, &queue.StubPublisher{})
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	reqBody, _ := json.Marshal(CreateSubmissionRequest{
+		ProblemID:  uid.String(),
+		LanguageID: "python",
+		SourceCode: "print('hello')",
+	})
+
+	resp, err := http.Post(ts.URL+"/api/v1/submissions", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatalf("http.Post: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", resp.StatusCode)
+	}
+}
+
 func TestCreateSubmission_ProblemNotFound(t *testing.T) {
 	uid := mustUUID(uuidBytes())
 	store := &stubStore{
