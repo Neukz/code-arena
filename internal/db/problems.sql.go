@@ -33,19 +33,12 @@ func (q *Queries) GetProblemBySlug(ctx context.Context, slug string) (Problem, e
 const listProblems = `-- name: ListProblems :many
 SELECT id, slug, title, description, difficulty, created_at, updated_at
 FROM problems
-WHERE ($3::problem_difficulty IS NULL OR difficulty = $3)
+WHERE ($1::problem_difficulty IS NULL OR difficulty = $1)
 ORDER BY created_at DESC
-LIMIT $1 OFFSET $2
 `
 
-type ListProblemsParams struct {
-	Limit      int32
-	Offset     int32
-	Difficulty NullProblemDifficulty
-}
-
-func (q *Queries) ListProblems(ctx context.Context, arg ListProblemsParams) ([]Problem, error) {
-	rows, err := q.db.Query(ctx, listProblems, arg.Limit, arg.Offset, arg.Difficulty)
+func (q *Queries) ListProblems(ctx context.Context, difficulty NullProblemDifficulty) ([]Problem, error) {
+	rows, err := q.db.Query(ctx, listProblems, difficulty)
 	if err != nil {
 		return nil, err
 	}
