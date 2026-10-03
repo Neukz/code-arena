@@ -8,3 +8,8 @@ ORDER BY created_at DESC;
 SELECT id, slug, title, description, difficulty, created_at, updated_at
 FROM problems
 WHERE slug = $1;
+
+-- name: GetProblemByID :one
+SELECT id, slug, title, description, difficulty, created_at, updated_at
+FROM problems
+WHERE id = $1;

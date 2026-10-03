@@ -13,6 +13,10 @@ type Querier interface {
 	Ping(ctx context.Context) (int32, error)
 	ListProblems(ctx context.Context, difficulty db.NullProblemDifficulty) ([]db.Problem, error)
 	GetProblemBySlug(ctx context.Context, slug string) (db.Problem, error)
+	GetProblemByID(ctx context.Context, id pgtype.UUID) (db.Problem, error)
 	GetSampleTestCasesByProblemID(ctx context.Context, problemID pgtype.UUID) ([]db.TestCase, error)
 	ListLanguages(ctx context.Context) ([]db.Language, error)
+	GetLanguageByID(ctx context.Context, id string) (db.Language, error)
+	CreateSubmission(ctx context.Context, arg db.CreateSubmissionParams) (db.Submission, error)
+	MarkSubmissionFailed(ctx context.Context, arg db.MarkSubmissionFailedParams) error
 }

@@ -48,3 +48,15 @@ type ListProblemsResponse struct {
 type ListLanguagesResponse struct {
 	Data []Language `json:"data"`
 }
+
+// CreateSubmissionRequest is the body of POST /api/v1/submissions.
+type CreateSubmissionRequest struct {
+	ProblemID  string `json:"problem_id"`
+	LanguageID string `json:"language_id"`
+	SourceCode string `json:"source_code"`
+}
+
+// CreateSubmissionResponse is the body returned on a successful submission.
+type CreateSubmissionResponse struct {
+	SubmissionID string `json:"submission_id"`
+}

@@ -7,7 +7,30 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const getProblemByID = `-- name: GetProblemByID :one
+SELECT id, slug, title, description, difficulty, created_at, updated_at
+FROM problems
+WHERE id = $1
+`
+
+func (q *Queries) GetProblemByID(ctx context.Context, id pgtype.UUID) (Problem, error) {
+	row := q.db.QueryRow(ctx, getProblemByID, id)
+	var i Problem
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Title,
+		&i.Description,
+		&i.Difficulty,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const getProblemBySlug = `-- name: GetProblemBySlug :one
 SELECT id, slug, title, description, difficulty, created_at, updated_at

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,20 +14,29 @@ import (
 	"time"
 
 	"github.com/Neukz/code-arena/internal/db"
+	"github.com/Neukz/code-arena/internal/queue"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type stubStore struct {
-	pingErr               error
-	problems              []db.Problem
-	listProblemsErr       error
-	problemBySlug         db.Problem
-	getProblemBySlugErr   error
-	sampleTestCases       []db.TestCase
-	getSampleTestCasesErr error
-	languages             []db.Language
-	listLanguagesErr      error
+	pingErr                  error
+	problems                 []db.Problem
+	listProblemsErr          error
+	problemBySlug            db.Problem
+	getProblemBySlugErr      error
+	problemByID              db.Problem
+	getProblemByIDErr        error
+	sampleTestCases          []db.TestCase
+	getSampleTestCasesErr    error
+	languages                []db.Language
+	listLanguagesErr         error
+	languageByID             db.Language
+	getLanguageByIDErr       error
+	createdSubmission        db.Submission
+	createSubmissionErr      error
+	markSubmissionFailedErr  error
+	lastMarkSubmissionFailed db.MarkSubmissionFailedParams
 }
 
 func (s *stubStore) Ping(ctx context.Context) (int32, error) {
@@ -41,12 +51,32 @@ func (s *stubStore) GetProblemBySlug(ctx context.Context, slug string) (db.Probl
 	return s.problemBySlug, s.getProblemBySlugErr
 }
 
+func (s *stubStore) GetProblemByID(ctx context.Context, id pgtype.UUID) (db.Problem, error) {
+	return s.problemByID, s.getProblemByIDErr
+}
+
 func (s *stubStore) GetSampleTestCasesByProblemID(ctx context.Context, problemID pgtype.UUID) ([]db.TestCase, error) {
 	return s.sampleTestCases, s.getSampleTestCasesErr
 }
 
 func (s *stubStore) ListLanguages(ctx context.Context) ([]db.Language, error) {
 	return s.languages, s.listLanguagesErr
+}
+
+func (s *stubStore) GetLanguageByID(ctx context.Context, id string) (db.Language, error) {
+	return s.languageByID, s.getLanguageByIDErr
+}
+
+func (s *stubStore) CreateSubmission(ctx context.Context, arg db.CreateSubmissionParams) (db.Submission, error) {
+	if s.createSubmissionErr != nil {
+		return db.Submission{}, s.createSubmissionErr
+	}
+	return s.createdSubmission, nil
+}
+
+func (s *stubStore) MarkSubmissionFailed(ctx context.Context, arg db.MarkSubmissionFailedParams) error {
+	s.lastMarkSubmissionFailed = arg
+	return s.markSubmissionFailedErr
 }
 
 func uuidBytes() [16]byte {
@@ -65,8 +95,12 @@ func closeBody(t *testing.T, body io.ReadCloser) {
 	}
 }
 
+func makeHandler(store *stubStore, publisher queue.JobPublisher) *Handler {
+	return NewHandler(store, publisher, slog.Default())
+}
+
 func TestHealthz(t *testing.T) {
-	h := NewHandler(&stubStore{}, slog.Default())
+	h := makeHandler(&stubStore{}, &queue.StubPublisher{})
 	ts := httptest.NewServer(h.Routes())
 	defer ts.Close()
 
@@ -86,7 +120,7 @@ func TestHealthz(t *testing.T) {
 }
 
 func TestReadyz_OK(t *testing.T) {
-	h := NewHandler(&stubStore{pingErr: nil}, slog.Default())
+	h := makeHandler(&stubStore{pingErr: nil}, &queue.StubPublisher{})
 	ts := httptest.NewServer(h.Routes())
 	defer ts.Close()
 
@@ -106,7 +140,7 @@ func TestReadyz_OK(t *testing.T) {
 }
 
 func TestReadyz_Unavailable(t *testing.T) {
-	h := NewHandler(&stubStore{pingErr: errors.New("db unreachable")}, slog.Default())
+	h := makeHandler(&stubStore{pingErr: errors.New("db unreachable")}, &queue.StubPublisher{})
 	ts := httptest.NewServer(h.Routes())
 	defer ts.Close()
 
@@ -126,7 +160,7 @@ func TestReadyz_Unavailable(t *testing.T) {
 }
 
 func TestReadyz_SetsRequestID(t *testing.T) {
-	h := NewHandler(&stubStore{pingErr: nil}, slog.Default())
+	h := makeHandler(&stubStore{pingErr: nil}, &queue.StubPublisher{})
 	ts := httptest.NewServer(h.Routes())
 	defer ts.Close()
 
@@ -155,7 +189,7 @@ func TestListProblems(t *testing.T) {
 		},
 	}
 
-	h := NewHandler(store, slog.Default())
+	h := makeHandler(store, &queue.StubPublisher{})
 	ts := httptest.NewServer(h.Routes())
 	defer ts.Close()
 
@@ -186,7 +220,7 @@ func TestListProblems(t *testing.T) {
 
 func TestListProblems_DBError(t *testing.T) {
 	store := &stubStore{listProblemsErr: errors.New("boom")}
-	h := NewHandler(store, slog.Default())
+	h := makeHandler(store, &queue.StubPublisher{})
 	ts := httptest.NewServer(h.Routes())
 	defer ts.Close()
 
@@ -225,7 +259,7 @@ func TestGetProblem(t *testing.T) {
 		},
 	}
 
-	h := NewHandler(store, slog.Default())
+	h := makeHandler(store, &queue.StubPublisher{})
 	ts := httptest.NewServer(h.Routes())
 	defer ts.Close()
 
@@ -256,7 +290,7 @@ func TestGetProblem(t *testing.T) {
 
 func TestGetProblem_NotFound(t *testing.T) {
 	store := &stubStore{getProblemBySlugErr: pgx.ErrNoRows}
-	h := NewHandler(store, slog.Default())
+	h := makeHandler(store, &queue.StubPublisher{})
 	ts := httptest.NewServer(h.Routes())
 	defer ts.Close()
 
@@ -279,7 +313,7 @@ func TestListLanguages(t *testing.T) {
 		},
 	}
 
-	h := NewHandler(store, slog.Default())
+	h := makeHandler(store, &queue.StubPublisher{})
 	ts := httptest.NewServer(h.Routes())
 	defer ts.Close()
 
@@ -307,7 +341,7 @@ func TestListLanguages(t *testing.T) {
 
 func TestListLanguages_DBError(t *testing.T) {
 	store := &stubStore{listLanguagesErr: errors.New("boom")}
-	h := NewHandler(store, slog.Default())
+	h := makeHandler(store, &queue.StubPublisher{})
 	ts := httptest.NewServer(h.Routes())
 	defer ts.Close()
 
@@ -319,5 +353,207 @@ func TestListLanguages_DBError(t *testing.T) {
 
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d", resp.StatusCode)
+	}
+}
+
+func TestCreateSubmission(t *testing.T) {
+	uid := mustUUID(uuidBytes())
+	store := &stubStore{
+		problemByID: db.Problem{
+			ID: uid,
+		},
+		languageByID: db.Language{
+			ID: "python",
+		},
+		createdSubmission: db.Submission{
+			ID:         uid,
+			ProblemID:  uid,
+			LanguageID: "python",
+			SourceCode: "print('hello')",
+			Status:     db.SubmissionStatusPending,
+		},
+	}
+	publisher := &queue.StubPublisher{}
+
+	h := makeHandler(store, publisher)
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	reqBody, _ := json.Marshal(CreateSubmissionRequest{
+		ProblemID:  uid.String(),
+		LanguageID: "python",
+		SourceCode: "print('hello')",
+	})
+
+	resp, err := http.Post(ts.URL+"/api/v1/submissions", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatalf("http.Post: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("expected status 202, got %d", resp.StatusCode)
+	}
+
+	var body CreateSubmissionResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.SubmissionID != uid.String() {
+		t.Fatalf("expected submission id %s, got %s", uid.String(), body.SubmissionID)
+	}
+}
+
+func TestCreateSubmission_InvalidProblemID(t *testing.T) {
+	h := makeHandler(&stubStore{}, &queue.StubPublisher{})
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	reqBody, _ := json.Marshal(CreateSubmissionRequest{
+		ProblemID:  "not-a-uuid",
+		LanguageID: "python",
+		SourceCode: "print('hello')",
+	})
+
+	resp, err := http.Post(ts.URL+"/api/v1/submissions", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatalf("http.Post: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestCreateSubmission_ProblemNotFound(t *testing.T) {
+	uid := mustUUID(uuidBytes())
+	store := &stubStore{
+		getProblemByIDErr: pgx.ErrNoRows,
+	}
+
+	h := makeHandler(store, &queue.StubPublisher{})
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	reqBody, _ := json.Marshal(CreateSubmissionRequest{
+		ProblemID:  uid.String(),
+		LanguageID: "python",
+		SourceCode: "print('hello')",
+	})
+
+	resp, err := http.Post(ts.URL+"/api/v1/submissions", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatalf("http.Post: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestCreateSubmission_LanguageNotFound(t *testing.T) {
+	uid := mustUUID(uuidBytes())
+	store := &stubStore{
+		problemByID: db.Problem{
+			ID: uid,
+		},
+		getLanguageByIDErr: pgx.ErrNoRows,
+	}
+
+	h := makeHandler(store, &queue.StubPublisher{})
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	reqBody, _ := json.Marshal(CreateSubmissionRequest{
+		ProblemID:  uid.String(),
+		LanguageID: "python",
+		SourceCode: "print('hello')",
+	})
+
+	resp, err := http.Post(ts.URL+"/api/v1/submissions", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatalf("http.Post: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestCreateSubmission_SourceCodeTooLong(t *testing.T) {
+	uid := mustUUID(uuidBytes())
+	store := &stubStore{
+		problemByID: db.Problem{
+			ID: uid,
+		},
+		languageByID: db.Language{
+			ID: "python",
+		},
+	}
+
+	h := makeHandler(store, &queue.StubPublisher{})
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	reqBody, _ := json.Marshal(CreateSubmissionRequest{
+		ProblemID:  uid.String(),
+		LanguageID: "python",
+		SourceCode: strings.Repeat("a", maxSourceCodeLength+1),
+	})
+
+	resp, err := http.Post(ts.URL+"/api/v1/submissions", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatalf("http.Post: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestCreateSubmission_PublishFailure(t *testing.T) {
+	uid := mustUUID(uuidBytes())
+	store := &stubStore{
+		problemByID: db.Problem{
+			ID: uid,
+		},
+		languageByID: db.Language{
+			ID: "python",
+		},
+		createdSubmission: db.Submission{
+			ID:         uid,
+			ProblemID:  uid,
+			LanguageID: "python",
+			SourceCode: "print('hello')",
+			Status:     db.SubmissionStatusPending,
+		},
+	}
+	publisher := &queue.StubPublisher{Err: errors.New("queue unreachable")}
+
+	h := makeHandler(store, publisher)
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	reqBody, _ := json.Marshal(CreateSubmissionRequest{
+		ProblemID:  uid.String(),
+		LanguageID: "python",
+		SourceCode: "print('hello')",
+	})
+
+	resp, err := http.Post(ts.URL+"/api/v1/submissions", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		t.Fatalf("http.Post: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected status 503, got %d", resp.StatusCode)
+	}
+	if !store.lastMarkSubmissionFailed.ErrorMessage.Valid {
+		t.Fatal("expected submission to be marked failed")
 	}
 }

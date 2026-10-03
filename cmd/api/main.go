@@ -13,6 +13,7 @@ import (
 	"github.com/Neukz/code-arena/internal/api"
 	"github.com/Neukz/code-arena/internal/config"
 	"github.com/Neukz/code-arena/internal/db"
+	"github.com/Neukz/code-arena/internal/queue"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -38,7 +39,7 @@ func run() error {
 	}
 	defer pool.Close()
 
-	handler := api.NewHandler(db.New(pool), log)
+	handler := api.NewHandler(db.New(pool), &queue.StubPublisher{}, log)
 	srv := api.NewServer(":"+cfg.APIPort, handler.Routes())
 
 	listenCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
