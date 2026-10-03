@@ -186,7 +186,7 @@ func TestProblems(t *testing.T) {
 	ctx := context.Background()
 
 	// Seed data contains two problems.
-	problems, err := queries.ListProblems(ctx, db.ListProblemsParams{Limit: 10, Offset: 0})
+	problems, err := queries.ListProblems(ctx, db.NullProblemDifficulty{})
 	if err != nil {
 		t.Fatalf("ListProblems: %v", err)
 	}
@@ -205,10 +205,9 @@ func TestProblems(t *testing.T) {
 		t.Errorf("unexpected difficulty: %v", twoSum.Difficulty)
 	}
 
-	filtered, err := queries.ListProblems(ctx, db.ListProblemsParams{
-		Difficulty: db.NullProblemDifficulty{ProblemDifficulty: db.ProblemDifficultyEasy, Valid: true},
-		Limit:      10,
-		Offset:     0,
+	filtered, err := queries.ListProblems(ctx, db.NullProblemDifficulty{
+		ProblemDifficulty: db.ProblemDifficultyEasy,
+		Valid:             true,
 	})
 	if err != nil {
 		t.Fatalf("ListProblems with filter: %v", err)

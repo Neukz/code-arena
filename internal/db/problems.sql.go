@@ -7,7 +7,30 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const getProblemByID = `-- name: GetProblemByID :one
+SELECT id, slug, title, description, difficulty, created_at, updated_at
+FROM problems
+WHERE id = $1
+`
+
+func (q *Queries) GetProblemByID(ctx context.Context, id pgtype.UUID) (Problem, error) {
+	row := q.db.QueryRow(ctx, getProblemByID, id)
+	var i Problem
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Title,
+		&i.Description,
+		&i.Difficulty,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const getProblemBySlug = `-- name: GetProblemBySlug :one
 SELECT id, slug, title, description, difficulty, created_at, updated_at
@@ -33,19 +56,12 @@ func (q *Queries) GetProblemBySlug(ctx context.Context, slug string) (Problem, e
 const listProblems = `-- name: ListProblems :many
 SELECT id, slug, title, description, difficulty, created_at, updated_at
 FROM problems
-WHERE ($3::problem_difficulty IS NULL OR difficulty = $3)
+WHERE ($1::problem_difficulty IS NULL OR difficulty = $1)
 ORDER BY created_at DESC
-LIMIT $1 OFFSET $2
 `
 
-type ListProblemsParams struct {
-	Limit      int32
-	Offset     int32
-	Difficulty NullProblemDifficulty
-}
-
-func (q *Queries) ListProblems(ctx context.Context, arg ListProblemsParams) ([]Problem, error) {
-	rows, err := q.db.Query(ctx, listProblems, arg.Limit, arg.Offset, arg.Difficulty)
+func (q *Queries) ListProblems(ctx context.Context, difficulty NullProblemDifficulty) ([]Problem, error) {
+	rows, err := q.db.Query(ctx, listProblems, difficulty)
 	if err != nil {
 		return nil, err
 	}
