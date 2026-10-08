@@ -27,6 +27,11 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("DATABASE_URL environment variable is required")
 	}
 
+	rmqURL := os.Getenv("RABBITMQ_URL")
+	if rmqURL == "" {
+		return nil, fmt.Errorf("RABBITMQ_URL environment variable is required")
+	}
+
 	logLevel := os.Getenv("LOG_LEVEL")
 	if logLevel == "" {
 		logLevel = "info"
@@ -35,7 +40,7 @@ func Load() (*Config, error) {
 	return &Config{
 		APIPort:     port,
 		DatabaseURL: dbURL,
-		RabbitMQURL: os.Getenv("RABBITMQ_URL"),
+		RabbitMQURL: rmqURL,
 		LogLevel:    logLevel,
 	}, nil
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/Neukz/code-arena/internal/db"
 	"github.com/Neukz/code-arena/internal/queue"
 	"github.com/jackc/pgx/v5/pgxpool"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func main() {
@@ -39,7 +40,27 @@ func run() error {
 	}
 	defer pool.Close()
 
-	handler := api.NewHandler(db.New(pool), &queue.StubPublisher{}, log)
+	amqpConn, err := amqp.Dial(cfg.RabbitMQURL)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := amqpConn.Close(); err != nil {
+			log.Error("failed to close amqp connection", slog.String("error", err.Error()))
+		}
+	}()
+
+	publisher, err := queue.NewPublisher(amqpConn)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := publisher.Close(); err != nil {
+			log.Error("failed to close publisher", slog.String("error", err.Error()))
+		}
+	}()
+
+	handler := api.NewHandler(db.New(pool), publisher, log)
 	srv := api.NewServer(":"+cfg.APIPort, handler.Routes())
 
 	listenCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

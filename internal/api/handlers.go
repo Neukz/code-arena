@@ -15,7 +15,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const maxSourceCodeLength = 64 * 1024
+const (
+	maxSourceCodeLength = 64 * 1024
+	publishTimeout      = 5 * time.Second
+)
 
 // Handler holds HTTP handlers and their dependencies.
 type Handler struct {
@@ -242,7 +245,10 @@ func (h *Handler) createSubmission(w http.ResponseWriter, r *http.Request) {
 		LanguageID:   req.LanguageID,
 		SourceCode:   req.SourceCode,
 	}
-	if err := h.publisher.Publish(ctx, job); err != nil {
+
+	publishCtx, cancel := context.WithTimeout(ctx, publishTimeout)
+	defer cancel()
+	if err := h.publisher.Publish(publishCtx, job); err != nil {
 		h.log.Error("failed to publish submission job", slog.String("error", err.Error()))
 
 		if markErr := h.store.MarkSubmissionFailed(ctx, db.MarkSubmissionFailedParams{
