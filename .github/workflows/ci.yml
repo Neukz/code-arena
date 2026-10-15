@@ -29,8 +29,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Install goose
-        run: go install github.com/pressly/goose/v3/cmd/goose@v3.28.0
       - name: Build
         run: go build ./...
       - name: Lint
@@ -42,6 +40,15 @@ jobs:
           docker build -t codearena/executor-python:latest ./executor-images/python
           docker build -t codearena/executor-javascript:latest ./executor-images/javascript
           docker build -t codearena/executor-go:latest ./executor-images/go
+      - name: Cache goose
+        id: cache-goose
+        uses: actions/cache@v6
+        with:
+          path: ~/go/bin/goose
+          key: ${{ runner.os }}-goose-v3.28.0
+      - name: Install goose
+        if: steps.cache-goose.outputs.cache-hit != 'true'
+        run: go install github.com/pressly/goose/v3/cmd/goose@v3.28.0
       - name: Test
         run: go test ./...
 
