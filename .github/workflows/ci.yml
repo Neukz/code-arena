@@ -37,6 +37,11 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13.2
+      - name: Build executor images
+        run: |
+          docker build -t codearena/executor-python:latest ./executor-images/python
+          docker build -t codearena/executor-javascript:latest ./executor-images/javascript
+          docker build -t codearena/executor-go:latest ./executor-images/go
       - name: Test
         run: go test ./...
 
