@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,9 @@ import (
 
 	"github.com/moby/moby/client"
 )
+
+// ErrCompileFailed indicates the source code did not compile successfully.
+var ErrCompileFailed = errors.New("compile failed")
 
 // Runner orchestrates sandbox container execution for a single submission.
 type Runner struct {
@@ -88,7 +92,7 @@ func (r *Runner) Run(ctx context.Context, req RunRequest) ([]TestResult, error) 
 			return nil, fmt.Errorf("compile: %w", err)
 		}
 		if compileRes.ExitCode != 0 {
-			return nil, fmt.Errorf("compile failed: %s", compileRes.Stderr)
+			return nil, fmt.Errorf("%w: %s", ErrCompileFailed, compileRes.Stderr)
 		}
 	}
 
