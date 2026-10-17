@@ -18,6 +18,11 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+// @title		CodeArena API
+// @version		1.0.0
+// @description	REST API for the CodeArena coding challenge platform.
+// @BasePath	/
+
 func main() {
 	if err := run(); err != nil {
 		slog.Error("api exited", slog.String("error", err.Error()))

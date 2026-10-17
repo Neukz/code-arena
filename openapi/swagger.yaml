@@ -1,0 +1,240 @@
+basePath: /
+definitions:
+  api.CreateSubmissionRequest:
+    properties:
+      language_id:
+        type: string
+      problem_id:
+        type: string
+      source_code:
+        type: string
+    type: object
+  api.CreateSubmissionResponse:
+    properties:
+      submission_id:
+        type: string
+    type: object
+  api.ErrorResponse:
+    properties:
+      error:
+        properties:
+          code:
+            type: string
+          message:
+            type: string
+        type: object
+    type: object
+  api.HealthResponse:
+    properties:
+      status:
+        type: string
+    type: object
+  api.Language:
+    properties:
+      display_name:
+        type: string
+      id:
+        type: string
+      memory_limit_mb:
+        type: integer
+      timeout_seconds:
+        type: integer
+    type: object
+  api.ListLanguagesResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/api.Language'
+        type: array
+    type: object
+  api.ListProblemsResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/api.ProblemListItem'
+        type: array
+    type: object
+  api.ProblemDetail:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      difficulty:
+        type: string
+      id:
+        type: string
+      slug:
+        type: string
+      test_cases:
+        items:
+          $ref: '#/definitions/api.TestCase'
+        type: array
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  api.ProblemListItem:
+    properties:
+      created_at:
+        type: string
+      difficulty:
+        type: string
+      id:
+        type: string
+      slug:
+        type: string
+      title:
+        type: string
+    type: object
+  api.TestCase:
+    properties:
+      expected_output:
+        type: string
+      id:
+        type: string
+      input:
+        type: string
+      name:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: REST API for the CodeArena coding challenge platform.
+  title: CodeArena API
+  version: 1.0.0
+paths:
+  /api/v1/languages:
+    get:
+      description: Returns all supported programming languages with their resource
+        limits.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ListLanguagesResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: List supported languages
+      tags:
+      - languages
+  /api/v1/problems:
+    get:
+      description: Returns all problems with id, slug, title, and difficulty.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ListProblemsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: List problems
+      tags:
+      - problems
+  /api/v1/problems/{slug}:
+    get:
+      description: Returns problem details including the Markdown prompt and sample
+        test cases.
+      parameters:
+      - description: Problem slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ProblemDetail'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get problem by slug
+      tags:
+      - problems
+  /api/v1/submissions:
+    post:
+      consumes:
+      - application/json
+      description: Validates the request, persists a pending submission, and enqueues
+        it for grading.
+      parameters:
+      - description: Submission to grade
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateSubmissionRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/api.CreateSubmissionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Create a submission
+      tags:
+      - submissions
+  /healthz:
+    get:
+      description: Returns ok if the service is running.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.HealthResponse'
+      summary: Health check
+      tags:
+      - health
+  /readyz:
+    get:
+      description: Returns ready when the database is reachable; otherwise unavailable.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.HealthResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/api.HealthResponse'
+      summary: Readiness check
+      tags:
+      - health
+swagger: "2.0"

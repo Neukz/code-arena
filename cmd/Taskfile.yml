@@ -27,3 +27,8 @@ tasks:
     desc: Run the worker
     cmds:
       - go run ./cmd/worker
+
+  generate:api:
+    desc: Generate OpenAPI spec from Go annotations
+    cmds:
+      - go tool swag init -g cmd/api/main.go -o openapi --ot yaml
