@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "generate:api": "swagger2openapi ../../openapi/swagger.yaml -o ../../openapi/openapi.yaml && openapi-typescript ../../openapi/openapi.yaml -o types/api.ts"
   },
   "dependencies": {
     "next": "16.3.5",
@@ -24,6 +25,8 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "openapi-typescript": "^7.13.0",
+    "swagger2openapi": "^7.0.8",
     "tailwindcss": "^4",
     "typescript": "^5"
   },

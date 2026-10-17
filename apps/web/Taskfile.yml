@@ -27,3 +27,8 @@ tasks:
     desc: Typecheck frontend code
     cmds:
       - pnpm typecheck
+
+  generate:api:
+    desc: Generate TypeScript API types from backend Swagger/OpenAPI spec
+    cmds:
+      - pnpm generate:api

@@ -32,8 +32,8 @@ func NewHandler(store Querier, publisher queue.JobPublisher, log *slog.Logger) *
 	return &Handler{store: store, publisher: publisher, log: log}
 }
 
-// errorResponse is the documented error response shape.
-type errorResponse struct {
+// ErrorResponse is the documented error response shape.
+type ErrorResponse struct {
 	Error struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
@@ -49,33 +49,60 @@ func (h *Handler) writeJSON(w http.ResponseWriter, status int, payload any) {
 }
 
 func (h *Handler) writeError(w http.ResponseWriter, status int, code, message string) {
-	body := errorResponse{}
+	body := ErrorResponse{}
 	body.Error.Code = code
 	body.Error.Message = message
 	h.writeJSON(w, status, body)
 }
 
-type healthResponse struct {
+// HealthResponse is the response shape for health and readiness endpoints.
+type HealthResponse struct {
 	Status string `json:"status"`
 }
 
+// healthz godoc
+//
+// @Summary     Health check
+// @Description Returns ok if the service is running.
+// @Tags        health
+// @Produce     json
+// @Success     200 {object} HealthResponse
+// @Router      /healthz [get]
 func (h *Handler) healthz(w http.ResponseWriter, r *http.Request) {
-	h.writeJSON(w, http.StatusOK, healthResponse{Status: "ok"})
+	h.writeJSON(w, http.StatusOK, HealthResponse{Status: "ok"})
 }
 
+// readyz godoc
+//
+// @Summary     Readiness check
+// @Description Returns ready when the database is reachable; otherwise unavailable.
+// @Tags        health
+// @Produce     json
+// @Success     200 {object} HealthResponse
+// @Failure     503 {object} HealthResponse
+// @Router      /readyz [get]
 func (h *Handler) readyz(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
 	if _, err := h.store.Ping(ctx); err != nil {
 		h.log.Error("readyz db ping failed", slog.String("error", err.Error()))
-		h.writeJSON(w, http.StatusServiceUnavailable, healthResponse{Status: "unavailable"})
+		h.writeJSON(w, http.StatusServiceUnavailable, HealthResponse{Status: "unavailable"})
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, healthResponse{Status: "ready"})
+	h.writeJSON(w, http.StatusOK, HealthResponse{Status: "ready"})
 }
 
+// listProblems godoc
+//
+// @Summary     List problems
+// @Description Returns all problems with id, slug, title, and difficulty.
+// @Tags        problems
+// @Produce     json
+// @Success     200 {object} ListProblemsResponse
+// @Failure     500 {object} ErrorResponse
+// @Router      /api/v1/problems [get]
 func (h *Handler) listProblems(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -100,6 +127,18 @@ func (h *Handler) listProblems(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, resp)
 }
 
+// getProblem godoc
+//
+// @Summary     Get problem by slug
+// @Description Returns problem details including the Markdown prompt and sample test cases.
+// @Tags        problems
+// @Produce     json
+// @Param       slug path string true "Problem slug"
+// @Success     200 {object} ProblemDetail
+// @Failure     400 {object} ErrorResponse
+// @Failure     404 {object} ErrorResponse
+// @Failure     500 {object} ErrorResponse
+// @Router      /api/v1/problems/{slug} [get]
 func (h *Handler) getProblem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := r.PathValue("slug")
@@ -148,6 +187,15 @@ func (h *Handler) getProblem(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, resp)
 }
 
+// listLanguages godoc
+//
+// @Summary		List supported languages
+// @Description	Returns all supported programming languages with their resource limits.
+// @Tags        languages
+// @Produce     json
+// @Success     200 {object} ListLanguagesResponse
+// @Failure     500 {object} ErrorResponse
+// @Router      /api/v1/languages [get]
 func (h *Handler) listLanguages(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -171,6 +219,19 @@ func (h *Handler) listLanguages(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, resp)
 }
 
+// createSubmission godoc
+//
+// @Summary     Create a submission
+// @Description Validates the request, persists a pending submission, and enqueues it for grading.
+// @Tags        submissions
+// @Accept      json
+// @Produce     json
+// @Param       request body CreateSubmissionRequest true "Submission to grade"
+// @Success     202 {object} CreateSubmissionResponse
+// @Failure     400 {object} ErrorResponse
+// @Failure     500 {object} ErrorResponse
+// @Failure     503 {object} ErrorResponse
+// @Router      /api/v1/submissions [post]
 func (h *Handler) createSubmission(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
