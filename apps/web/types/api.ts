@@ -240,6 +240,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/submissions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get submission status
+         * @description Returns submission status, overall verdict, error message, and per-test-case results. Hidden test cases omit stdout/stderr.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Submission ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["api.SubmissionStatusResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["api.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["api.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["api.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -377,6 +446,27 @@ export interface components {
             id: string;
             slug: string;
             title: string;
+        };
+        "api.SubmissionStatusResponse": {
+            completed_at?: string;
+            created_at: string;
+            error_message?: string;
+            id: string;
+            language_id: string;
+            overall_verdict?: string;
+            problem_id: string;
+            results: components["schemas"]["api.SubmissionTestResult"][];
+            status: string;
+            updated_at: string;
+        };
+        "api.SubmissionTestResult": {
+            execution_time_ms?: number;
+            memory_used_mb?: number;
+            name: string;
+            stderr?: string;
+            stdout?: string;
+            test_case_id: string;
+            verdict: string;
         };
         "api.TestCase": {
             expected_output: string;

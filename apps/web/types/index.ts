@@ -10,7 +10,10 @@ export type CreateSubmissionResponse =
   components["schemas"]["api.CreateSubmissionResponse"];
 export type ErrorResponse = components["schemas"]["api.ErrorResponse"];
 export type HealthResponse = components["schemas"]["api.HealthResponse"];
-
+export type SubmissionStatusResponse =
+  components["schemas"]["api.SubmissionStatusResponse"];
+export type SubmissionTestResult =
+  components["schemas"]["api.SubmissionTestResult"];
 export type ListProblemsResponse =
   components["schemas"]["api.ListProblemsResponse"];
 export type ListLanguagesResponse =

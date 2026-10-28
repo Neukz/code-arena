@@ -19,4 +19,6 @@ type Querier interface {
 	GetLanguageByID(ctx context.Context, id string) (db.Language, error)
 	CreateSubmission(ctx context.Context, arg db.CreateSubmissionParams) (db.Submission, error)
 	MarkSubmissionFailed(ctx context.Context, arg db.MarkSubmissionFailedParams) error
+	GetSubmissionByID(ctx context.Context, id pgtype.UUID) (db.Submission, error)
+	GetSubmissionResultsBySubmissionID(ctx context.Context, submissionID pgtype.UUID) ([]db.GetSubmissionResultsBySubmissionIDRow, error)
 }

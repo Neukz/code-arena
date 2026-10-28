@@ -326,6 +326,81 @@ func (h *Handler) createSubmission(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusAccepted, CreateSubmissionResponse{SubmissionID: pgUUIDToString(submission.ID)})
 }
 
+// getSubmission godoc
+//
+// @Summary     Get submission status
+// @Description Returns submission status, overall verdict, error message, and per-test-case results. Hidden test cases omit stdout/stderr.
+// @Tags        submissions
+// @Produce     json
+// @Param       id path string true "Submission ID"
+// @Success     200 {object} SubmissionStatusResponse
+// @Failure     400 {object} ErrorResponse
+// @Failure     404 {object} ErrorResponse
+// @Failure     500 {object} ErrorResponse
+// @Router      /api/v1/submissions/{id} [get]
+func (h *Handler) getSubmission(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	idParam := r.PathValue("id")
+	if idParam == "" {
+		h.writeError(w, http.StatusBadRequest, "bad_request", "missing submission id")
+		return
+	}
+
+	id, err := parseUUID(idParam)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "bad_request", "submission id must be a valid uuid")
+		return
+	}
+
+	submission, err := h.store.GetSubmissionByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			h.writeError(w, http.StatusNotFound, "not_found", "submission not found")
+			return
+		}
+		h.log.Error("failed to get submission", slog.String("id", idParam), slog.String("error", err.Error()))
+		h.writeError(w, http.StatusInternalServerError, "internal_error", "failed to get submission")
+		return
+	}
+
+	results, err := h.store.GetSubmissionResultsBySubmissionID(ctx, id)
+	if err != nil {
+		h.log.Error("failed to get submission results", slog.String("id", idParam), slog.String("error", err.Error()))
+		h.writeError(w, http.StatusInternalServerError, "internal_error", "failed to get submission")
+		return
+	}
+
+	resp := SubmissionStatusResponse{
+		ID:             pgUUIDToString(submission.ID),
+		ProblemID:      pgUUIDToString(submission.ProblemID),
+		LanguageID:     submission.LanguageID,
+		Status:         string(submission.Status),
+		OverallVerdict: pgVerdictToString(submission.OverallVerdict),
+		ErrorMessage:   pgTextToString(submission.ErrorMessage),
+		Results:        make([]SubmissionTestResult, 0, len(results)),
+		CreatedAt:      pgTimestamptzToTime(submission.CreatedAt),
+		UpdatedAt:      pgTimestamptzToTime(submission.UpdatedAt),
+		CompletedAt:    pgTimestamptzToPtr(submission.CompletedAt),
+	}
+
+	for _, row := range results {
+		tr := SubmissionTestResult{
+			TestCaseID:      pgUUIDToString(row.TestCaseID),
+			Name:            row.Name,
+			Verdict:         string(row.Verdict),
+			ExecutionTimeMs: pgInt4ToPtr(row.ExecutionTimeMs),
+			MemoryUsedMb:    pgInt4ToPtr(row.MemoryUsedMb),
+		}
+		if !row.IsHidden {
+			tr.Stdout = pgTextToString(row.Stdout)
+			tr.Stderr = pgTextToString(row.Stderr)
+		}
+		resp.Results = append(resp.Results, tr)
+	}
+
+	h.writeJSON(w, http.StatusOK, resp)
+}
+
 // pgUUIDToString converts a pgtype.UUID to its canonical string representation.
 // Invalid UUIDs return an empty string.
 func pgUUIDToString(u pgtype.UUID) string {
@@ -351,4 +426,40 @@ func parseUUID(s string) (pgtype.UUID, error) {
 		return pgtype.UUID{}, err
 	}
 	return u, nil
+}
+
+// pgTimestamptzToPtr converts a pgtype.Timestamptz to a *time.Time.
+// Invalid timestamps return nil.
+func pgTimestamptzToPtr(t pgtype.Timestamptz) *time.Time {
+	if !t.Valid {
+		return nil
+	}
+	return &t.Time
+}
+
+// pgInt4ToPtr converts a pgtype.Int4 to a *int32.
+// Invalid values return nil.
+func pgInt4ToPtr(i pgtype.Int4) *int32 {
+	if !i.Valid {
+		return nil
+	}
+	return &i.Int32
+}
+
+// pgTextToString converts a pgtype.Text to a string.
+// Invalid values return an empty string.
+func pgTextToString(t pgtype.Text) string {
+	if !t.Valid {
+		return ""
+	}
+	return t.String
+}
+
+// pgVerdictToString converts a db.NullVerdict to a string.
+// Invalid values return an empty string.
+func pgVerdictToString(v db.NullVerdict) string {
+	if !v.Valid {
+		return ""
+	}
+	return string(v.Verdict)
 }

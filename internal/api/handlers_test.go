@@ -20,23 +20,27 @@ import (
 )
 
 type stubStore struct {
-	pingErr                  error
-	problems                 []db.Problem
-	listProblemsErr          error
-	problemBySlug            db.Problem
-	getProblemBySlugErr      error
-	problemByID              db.Problem
-	getProblemByIDErr        error
-	sampleTestCases          []db.TestCase
-	getSampleTestCasesErr    error
-	languages                []db.Language
-	listLanguagesErr         error
-	languageByID             db.Language
-	getLanguageByIDErr       error
-	createdSubmission        db.Submission
-	createSubmissionErr      error
-	markSubmissionFailedErr  error
-	lastMarkSubmissionFailed db.MarkSubmissionFailedParams
+	pingErr                         error
+	problems                        []db.Problem
+	listProblemsErr                 error
+	problemBySlug                   db.Problem
+	getProblemBySlugErr             error
+	problemByID                     db.Problem
+	getProblemByIDErr               error
+	sampleTestCases                 []db.TestCase
+	getSampleTestCasesErr           error
+	languages                       []db.Language
+	listLanguagesErr                error
+	languageByID                    db.Language
+	getLanguageByIDErr              error
+	createdSubmission               db.Submission
+	createSubmissionErr             error
+	markSubmissionFailedErr         error
+	lastMarkSubmissionFailed        db.MarkSubmissionFailedParams
+	submissionByID                  db.Submission
+	getSubmissionByIDErr            error
+	submissionResultsBySubmissionID []db.GetSubmissionResultsBySubmissionIDRow
+	getSubmissionResultsErr         error
 }
 
 func (s *stubStore) Ping(ctx context.Context) (int32, error) {
@@ -77,6 +81,14 @@ func (s *stubStore) CreateSubmission(ctx context.Context, arg db.CreateSubmissio
 func (s *stubStore) MarkSubmissionFailed(ctx context.Context, arg db.MarkSubmissionFailedParams) error {
 	s.lastMarkSubmissionFailed = arg
 	return s.markSubmissionFailedErr
+}
+
+func (s *stubStore) GetSubmissionByID(ctx context.Context, id pgtype.UUID) (db.Submission, error) {
+	return s.submissionByID, s.getSubmissionByIDErr
+}
+
+func (s *stubStore) GetSubmissionResultsBySubmissionID(ctx context.Context, submissionID pgtype.UUID) ([]db.GetSubmissionResultsBySubmissionIDRow, error) {
+	return s.submissionResultsBySubmissionID, s.getSubmissionResultsErr
 }
 
 func uuidBytes() [16]byte {
@@ -653,5 +665,234 @@ func TestCreateSubmission_PublishFailure(t *testing.T) {
 	}
 	if !store.lastMarkSubmissionFailed.ErrorMessage.Valid {
 		t.Fatal("expected submission to be marked failed")
+	}
+}
+
+func TestGetSubmission_Pending(t *testing.T) {
+	uid := mustUUID(uuidBytes())
+	store := &stubStore{
+		submissionByID: db.Submission{
+			ID:         uid,
+			ProblemID:  uid,
+			LanguageID: "python",
+			Status:     db.SubmissionStatusPending,
+			CreatedAt:  pgtype.Timestamptz{Time: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), Valid: true},
+			UpdatedAt:  pgtype.Timestamptz{Time: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC), Valid: true},
+		},
+	}
+
+	h := makeHandler(store, &queue.StubPublisher{})
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/submissions/" + uid.String())
+	if err != nil {
+		t.Fatalf("http.Get: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var body SubmissionStatusResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.ID != uid.String() {
+		t.Fatalf("expected id %s, got %s", uid.String(), body.ID)
+	}
+	if body.Status != "pending" {
+		t.Fatalf("expected status pending, got %s", body.Status)
+	}
+	if len(body.Results) != 0 {
+		t.Fatalf("expected 0 results, got %d", len(body.Results))
+	}
+	if body.CompletedAt != nil {
+		t.Fatalf("expected nil completed_at, got %v", body.CompletedAt)
+	}
+}
+
+func TestGetSubmission_Completed(t *testing.T) {
+	uid := mustUUID(uuidBytes())
+	resultID := mustUUID(uuidBytes())
+	completedAt := time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)
+	store := &stubStore{
+		submissionByID: db.Submission{
+			ID:             uid,
+			ProblemID:      uid,
+			LanguageID:     "python",
+			Status:         db.SubmissionStatusCompleted,
+			OverallVerdict: db.NullVerdict{Verdict: db.VerdictAccepted, Valid: true},
+			CreatedAt:      pgtype.Timestamptz{Time: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), Valid: true},
+			UpdatedAt:      pgtype.Timestamptz{Time: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC), Valid: true},
+			CompletedAt:    pgtype.Timestamptz{Time: completedAt, Valid: true},
+		},
+		submissionResultsBySubmissionID: []db.GetSubmissionResultsBySubmissionIDRow{
+			{
+				ID:              resultID,
+				SubmissionID:    uid,
+				TestCaseID:      uid,
+				Verdict:         db.VerdictAccepted,
+				Stdout:          pgtype.Text{String: "0 1", Valid: true},
+				Stderr:          pgtype.Text{String: "", Valid: true},
+				ExecutionTimeMs: pgtype.Int4{Int32: 42, Valid: true},
+				MemoryUsedMb:    pgtype.Int4{Int32: 16, Valid: true},
+				Name:            "Sample 1",
+				IsHidden:        false,
+			},
+		},
+	}
+
+	h := makeHandler(store, &queue.StubPublisher{})
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/submissions/" + uid.String())
+	if err != nil {
+		t.Fatalf("http.Get: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var body SubmissionStatusResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Status != "completed" {
+		t.Fatalf("expected status completed, got %s", body.Status)
+	}
+	if body.OverallVerdict != "accepted" {
+		t.Fatalf("expected overall_verdict accepted, got %s", body.OverallVerdict)
+	}
+	if body.CompletedAt == nil || !body.CompletedAt.Equal(completedAt) {
+		t.Fatalf("expected completed_at %v, got %v", completedAt, body.CompletedAt)
+	}
+	if len(body.Results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(body.Results))
+	}
+	if body.Results[0].Verdict != "accepted" {
+		t.Fatalf("expected verdict accepted, got %s", body.Results[0].Verdict)
+	}
+	if body.Results[0].Stdout != "0 1" {
+		t.Fatalf("unexpected stdout: %s", body.Results[0].Stdout)
+	}
+	if body.Results[0].ExecutionTimeMs == nil || *body.Results[0].ExecutionTimeMs != 42 {
+		t.Fatalf("expected execution_time_ms 42, got %v", body.Results[0].ExecutionTimeMs)
+	}
+	if body.Results[0].MemoryUsedMb == nil || *body.Results[0].MemoryUsedMb != 16 {
+		t.Fatalf("expected memory_used_mb 16, got %v", body.Results[0].MemoryUsedMb)
+	}
+}
+
+func TestGetSubmission_HidesHiddenCaseOutput(t *testing.T) {
+	uid := mustUUID(uuidBytes())
+	resultID := mustUUID(uuidBytes())
+	store := &stubStore{
+		submissionByID: db.Submission{
+			ID:             uid,
+			ProblemID:      uid,
+			LanguageID:     "python",
+			Status:         db.SubmissionStatusCompleted,
+			OverallVerdict: db.NullVerdict{Verdict: db.VerdictAccepted, Valid: true},
+			CreatedAt:      pgtype.Timestamptz{Time: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), Valid: true},
+			UpdatedAt:      pgtype.Timestamptz{Time: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC), Valid: true},
+		},
+		submissionResultsBySubmissionID: []db.GetSubmissionResultsBySubmissionIDRow{
+			{
+				ID:              resultID,
+				SubmissionID:    uid,
+				TestCaseID:      uid,
+				Verdict:         db.VerdictAccepted,
+				Stdout:          pgtype.Text{String: "secret", Valid: true},
+				Stderr:          pgtype.Text{String: "secret err", Valid: true},
+				ExecutionTimeMs: pgtype.Int4{Int32: 10, Valid: true},
+				Name:            "Hidden 1",
+				IsHidden:        true,
+			},
+		},
+	}
+
+	h := makeHandler(store, &queue.StubPublisher{})
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/submissions/" + uid.String())
+	if err != nil {
+		t.Fatalf("http.Get: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var body SubmissionStatusResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(body.Results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(body.Results))
+	}
+	if body.Results[0].Stdout != "" {
+		t.Fatalf("expected hidden stdout to be empty, got %s", body.Results[0].Stdout)
+	}
+	if body.Results[0].Stderr != "" {
+		t.Fatalf("expected hidden stderr to be empty, got %s", body.Results[0].Stderr)
+	}
+}
+
+func TestGetSubmission_NotFound(t *testing.T) {
+	uid := mustUUID(uuidBytes())
+	store := &stubStore{getSubmissionByIDErr: pgx.ErrNoRows}
+	h := makeHandler(store, &queue.StubPublisher{})
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/submissions/" + uid.String())
+	if err != nil {
+		t.Fatalf("http.Get: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestGetSubmission_InvalidID(t *testing.T) {
+	h := makeHandler(&stubStore{}, &queue.StubPublisher{})
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/submissions/not-a-uuid")
+	if err != nil {
+		t.Fatalf("http.Get: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestGetSubmission_DBError(t *testing.T) {
+	uid := mustUUID(uuidBytes())
+	store := &stubStore{getSubmissionByIDErr: errors.New("boom")}
+	h := makeHandler(store, &queue.StubPublisher{})
+	ts := httptest.NewServer(h.Routes())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/submissions/" + uid.String())
+	if err != nil {
+		t.Fatalf("http.Get: %v", err)
+	}
+	defer closeBody(t, resp.Body)
+
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", resp.StatusCode)
 	}
 }
