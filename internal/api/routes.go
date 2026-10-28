@@ -13,5 +13,5 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/languages", h.listLanguages)
 	mux.HandleFunc("POST /api/v1/submissions", h.createSubmission)
 
-	return withMiddleware(mux, h.log)
+	return withMiddleware(mux, h.log, h.corsAllowedOrigins)
 }

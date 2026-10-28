@@ -332,56 +332,57 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         "api.CreateSubmissionRequest": {
-            language_id?: string;
-            problem_id?: string;
-            source_code?: string;
+            language_id: string;
+            problem_id: string;
+            source_code: string;
         };
         "api.CreateSubmissionResponse": {
-            submission_id?: string;
+            submission_id: string;
+        };
+        "api.ErrorDetail": {
+            code: string;
+            message: string;
         };
         "api.ErrorResponse": {
-            error?: {
-                code?: string;
-                message?: string;
-            };
+            error: components["schemas"]["api.ErrorDetail"];
         };
         "api.HealthResponse": {
-            status?: string;
+            status: string;
         };
         "api.Language": {
-            display_name?: string;
-            id?: string;
-            memory_limit_mb?: number;
-            timeout_seconds?: number;
+            display_name: string;
+            id: string;
+            memory_limit_mb: number;
+            timeout_seconds: number;
         };
         "api.ListLanguagesResponse": {
-            data?: components["schemas"]["api.Language"][];
+            data: components["schemas"]["api.Language"][];
         };
         "api.ListProblemsResponse": {
-            data?: components["schemas"]["api.ProblemListItem"][];
+            data: components["schemas"]["api.ProblemListItem"][];
         };
         "api.ProblemDetail": {
-            created_at?: string;
-            description?: string;
-            difficulty?: string;
-            id?: string;
-            slug?: string;
-            test_cases?: components["schemas"]["api.TestCase"][];
-            title?: string;
-            updated_at?: string;
+            created_at: string;
+            description: string;
+            difficulty: string;
+            id: string;
+            slug: string;
+            test_cases: components["schemas"]["api.TestCase"][];
+            title: string;
+            updated_at: string;
         };
         "api.ProblemListItem": {
-            created_at?: string;
-            difficulty?: string;
-            id?: string;
-            slug?: string;
-            title?: string;
+            created_at: string;
+            difficulty: string;
+            id: string;
+            slug: string;
+            title: string;
         };
         "api.TestCase": {
-            expected_output?: string;
-            id?: string;
-            input?: string;
-            name?: string;
+            expected_output: string;
+            id: string;
+            input: string;
+            name: string;
         };
     };
     responses: never;
