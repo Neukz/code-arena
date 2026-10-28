@@ -4,14 +4,16 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 // Config holds environment variables shared by the API gateway and worker.
 type Config struct {
-	APIPort     string
-	DatabaseURL string
-	RabbitMQURL string
-	LogLevel    string
+	APIPort            string
+	DatabaseURL        string
+	RabbitMQURL        string
+	LogLevel           string
+	CORSAllowedOrigins []string
 }
 
 // Load reads configuration from environment variables.
@@ -37,10 +39,19 @@ func Load() (*Config, error) {
 		logLevel = "info"
 	}
 
+	var corsOrigins []string
+	if v := strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGINS")); v != "" {
+		corsOrigins = strings.Split(v, ",")
+		for i := range corsOrigins {
+			corsOrigins[i] = strings.TrimSpace(corsOrigins[i])
+		}
+	}
+
 	return &Config{
-		APIPort:     port,
-		DatabaseURL: dbURL,
-		RabbitMQURL: rmqURL,
-		LogLevel:    logLevel,
+		APIPort:            port,
+		DatabaseURL:        dbURL,
+		RabbitMQURL:        rmqURL,
+		LogLevel:           logLevel,
+		CORSAllowedOrigins: corsOrigins,
 	}, nil
 }

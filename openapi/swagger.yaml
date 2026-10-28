@@ -8,26 +8,41 @@ definitions:
         type: string
       source_code:
         type: string
+    required:
+    - language_id
+    - problem_id
+    - source_code
     type: object
   api.CreateSubmissionResponse:
     properties:
       submission_id:
         type: string
+    required:
+    - submission_id
+    type: object
+  api.ErrorDetail:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    required:
+    - code
+    - message
     type: object
   api.ErrorResponse:
     properties:
       error:
-        properties:
-          code:
-            type: string
-          message:
-            type: string
-        type: object
+        $ref: '#/definitions/api.ErrorDetail'
+    required:
+    - error
     type: object
   api.HealthResponse:
     properties:
       status:
         type: string
+    required:
+    - status
     type: object
   api.Language:
     properties:
@@ -39,6 +54,11 @@ definitions:
         type: integer
       timeout_seconds:
         type: integer
+    required:
+    - display_name
+    - id
+    - memory_limit_mb
+    - timeout_seconds
     type: object
   api.ListLanguagesResponse:
     properties:
@@ -46,6 +66,8 @@ definitions:
         items:
           $ref: '#/definitions/api.Language'
         type: array
+    required:
+    - data
     type: object
   api.ListProblemsResponse:
     properties:
@@ -53,6 +75,8 @@ definitions:
         items:
           $ref: '#/definitions/api.ProblemListItem'
         type: array
+    required:
+    - data
     type: object
   api.ProblemDetail:
     properties:
@@ -74,6 +98,15 @@ definitions:
         type: string
       updated_at:
         type: string
+    required:
+    - created_at
+    - description
+    - difficulty
+    - id
+    - slug
+    - test_cases
+    - title
+    - updated_at
     type: object
   api.ProblemListItem:
     properties:
@@ -87,6 +120,12 @@ definitions:
         type: string
       title:
         type: string
+    required:
+    - created_at
+    - difficulty
+    - id
+    - slug
+    - title
     type: object
   api.TestCase:
     properties:
@@ -98,6 +137,11 @@ definitions:
         type: string
       name:
         type: string
+    required:
+    - expected_output
+    - id
+    - input
+    - name
     type: object
 info:
   contact: {}

@@ -65,7 +65,7 @@ func run() error {
 		}
 	}()
 
-	handler := api.NewHandler(db.New(pool), publisher, log)
+	handler := api.NewHandler(db.New(pool), publisher, log, api.WithCORSAllowedOrigins(cfg.CORSAllowedOrigins))
 	srv := api.NewServer(":"+cfg.APIPort, handler.Routes())
 
 	listenCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

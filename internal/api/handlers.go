@@ -20,24 +20,31 @@ const (
 	publishTimeout      = 5 * time.Second
 )
 
+// HandlerOption customizes a Handler.
+type HandlerOption func(*Handler)
+
+// WithCORSAllowedOrigins sets the allowed origins for CORS preflight and responses.
+func WithCORSAllowedOrigins(origins []string) HandlerOption {
+	return func(h *Handler) {
+		h.corsAllowedOrigins = origins
+	}
+}
+
 // Handler holds HTTP handlers and their dependencies.
 type Handler struct {
-	store     Querier
-	publisher queue.JobPublisher
-	log       *slog.Logger
+	store              Querier
+	publisher          queue.JobPublisher
+	log                *slog.Logger
+	corsAllowedOrigins []string
 }
 
 // NewHandler creates a handler group backed by the given store, publisher, and logger.
-func NewHandler(store Querier, publisher queue.JobPublisher, log *slog.Logger) *Handler {
-	return &Handler{store: store, publisher: publisher, log: log}
-}
-
-// ErrorResponse is the documented error response shape.
-type ErrorResponse struct {
-	Error struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	} `json:"error"`
+func NewHandler(store Querier, publisher queue.JobPublisher, log *slog.Logger, opts ...HandlerOption) *Handler {
+	h := &Handler{store: store, publisher: publisher, log: log}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
 }
 
 func (h *Handler) writeJSON(w http.ResponseWriter, status int, payload any) {
@@ -49,15 +56,8 @@ func (h *Handler) writeJSON(w http.ResponseWriter, status int, payload any) {
 }
 
 func (h *Handler) writeError(w http.ResponseWriter, status int, code, message string) {
-	body := ErrorResponse{}
-	body.Error.Code = code
-	body.Error.Message = message
+	body := ErrorResponse{Error: ErrorDetail{Code: code, Message: message}}
 	h.writeJSON(w, status, body)
-}
-
-// HealthResponse is the response shape for health and readiness endpoints.
-type HealthResponse struct {
-	Status string `json:"status"`
 }
 
 // healthz godoc

@@ -21,8 +21,8 @@ func (rr *responseRecorder) WriteHeader(statusCode int) {
 	rr.ResponseWriter.WriteHeader(statusCode)
 }
 
-func withMiddleware(next http.Handler, log *slog.Logger) http.Handler {
-	return withRequestID(withLogger(next, log))
+func withMiddleware(next http.Handler, log *slog.Logger, allowedOrigins []string) http.Handler {
+	return withRequestID(withLogger(withCORS(next, allowedOrigins), log))
 }
 
 func withRequestID(next http.Handler) http.Handler {
@@ -56,6 +56,33 @@ func withLogger(next http.Handler, log *slog.Logger) http.Handler {
 			slog.Duration("duration", time.Since(start)),
 			slog.String("request_id", requestIDFromContext(r.Context())),
 		)
+	})
+}
+
+func withCORS(next http.Handler, allowedOrigins []string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		allowed := ""
+
+		for _, o := range allowedOrigins {
+			if o == "*" || o == origin {
+				allowed = o
+				break
+			}
+		}
+
+		if allowed != "" {
+			w.Header().Set("Access-Control-Allow-Origin", allowed)
+		}
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Request-ID")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
 	})
 }
 
