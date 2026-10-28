@@ -127,6 +127,60 @@ definitions:
     - slug
     - title
     type: object
+  api.SubmissionStatusResponse:
+    properties:
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      error_message:
+        type: string
+      id:
+        type: string
+      language_id:
+        type: string
+      overall_verdict:
+        type: string
+      problem_id:
+        type: string
+      results:
+        items:
+          $ref: '#/definitions/api.SubmissionTestResult'
+        type: array
+      status:
+        type: string
+      updated_at:
+        type: string
+    required:
+    - created_at
+    - id
+    - language_id
+    - problem_id
+    - results
+    - status
+    - updated_at
+    type: object
+  api.SubmissionTestResult:
+    properties:
+      execution_time_ms:
+        type: integer
+      memory_used_mb:
+        type: integer
+      name:
+        type: string
+      stderr:
+        type: string
+      stdout:
+        type: string
+      test_case_id:
+        type: string
+      verdict:
+        type: string
+    required:
+    - name
+    - test_case_id
+    - verdict
+    type: object
   api.TestCase:
     properties:
       expected_output:
@@ -249,6 +303,38 @@ paths:
           schema:
             $ref: '#/definitions/api.ErrorResponse'
       summary: Create a submission
+      tags:
+      - submissions
+  /api/v1/submissions/{id}:
+    get:
+      description: Returns submission status, overall verdict, error message, and
+        per-test-case results. Hidden test cases omit stdout/stderr.
+      parameters:
+      - description: Submission ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SubmissionStatusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get submission status
       tags:
       - submissions
   /healthz:

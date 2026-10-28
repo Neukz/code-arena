@@ -61,6 +61,31 @@ type CreateSubmissionResponse struct {
 	SubmissionID string `json:"submission_id" validate:"required"`
 }
 
+// SubmissionStatusResponse is the shape returned by GET /api/v1/submissions/{id}.
+type SubmissionStatusResponse struct {
+	ID             string                 `json:"id" validate:"required"`
+	ProblemID      string                 `json:"problem_id" validate:"required"`
+	LanguageID     string                 `json:"language_id" validate:"required"`
+	Status         string                 `json:"status" validate:"required"`
+	OverallVerdict string                 `json:"overall_verdict,omitempty"`
+	ErrorMessage   string                 `json:"error_message,omitempty"`
+	Results        []SubmissionTestResult `json:"results" validate:"required"`
+	CreatedAt      time.Time              `json:"created_at" validate:"required"`
+	UpdatedAt      time.Time              `json:"updated_at" validate:"required"`
+	CompletedAt    *time.Time             `json:"completed_at,omitempty"`
+}
+
+// SubmissionTestResult is a single test case result in the submission status response.
+type SubmissionTestResult struct {
+	TestCaseID      string `json:"test_case_id" validate:"required"`
+	Name            string `json:"name" validate:"required"`
+	Verdict         string `json:"verdict" validate:"required"`
+	Stdout          string `json:"stdout,omitempty"`
+	Stderr          string `json:"stderr,omitempty"`
+	ExecutionTimeMs *int32 `json:"execution_time_ms,omitempty"`
+	MemoryUsedMb    *int32 `json:"memory_used_mb,omitempty"`
+}
+
 // ErrorResponse is the documented error response shape.
 type ErrorResponse struct {
 	Error ErrorDetail `json:"error" validate:"required"`
